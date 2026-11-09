@@ -1,0 +1,11 @@
+{
+  "name": "actionfeed-monorepo",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "test": "pnpm -r test",
+    "build": "pnpm -r build",
+    "replay": "pnpm --filter @actionfeed/service replay"
+  },
+  "packageManager": "pnpm@12.16.1"
+}

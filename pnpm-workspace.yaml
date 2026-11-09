@@ -1,0 +1,5 @@
+packages:
+  - service
+  - sdk
+allowBuilds:
+  esbuild: true

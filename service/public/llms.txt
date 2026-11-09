@@ -1,0 +1,24 @@
+# ActionFeed
+
+> Open-source corporate-action feed for Coinbase tokenized stocks on Base (B20 asset tokens, ERC-8056 UI multiplier). Independent project; not affiliated with Coinbase or Base. Not investment advice.
+
+## What an agent should know
+- Token balances are raw units. The displayed amount is raw * uiMultiplier / 1e18. Splits and reinvested dividends change the multiplier, not balances.
+- A multiplier change can be scheduled in advance (effectiveAt in the future) and can be cancelled. Never treat a scheduled value as live before effectiveAt.
+- All multipliers in this API are decimal strings scaled by 1e18 (1e18 = 1.0). Timestamps are unix seconds.
+
+## Endpoints (JSON, CORS enabled, rate limited)
+- GET /v1/actions/upcoming — pending (not yet effective) multiplier changes across all tokens, soonest first.
+- GET /v1/actions/recent?limit=50 — latest indexed events (updated, cancelled, announcement, paused, unpaused, policy).
+- GET /v1/tokens — all known tokens with current multiplier and pending change.
+- GET /v1/tokens/{address} — one token (plus live chain read when available).
+- GET /v1/tokens/{address}/multiplier?at=<unix> — multiplier in force at a time. `known:false` means the indexed window does not cover it.
+- GET /v1/tokens/{address}/history — canonical history (cancelled updates removed, dated by effectiveAt) plus raw events.
+- POST /v1/subscriptions — webhooks (url, tokens[], events[scheduled|cancelled|effective|paused|announcement], leads[T-24h|T-1h|T-5m]). Payloads are signed: header X-ActionFeed-Signature: t=<unix>,v1=<hex HMAC-SHA256 of "<t>.<body>">.
+- GET /v1/stream — Server-Sent Events of new events.
+- GET /health, GET /openapi.json
+
+## Usage guidance
+- Before quoting a price, size an order or trade a tokenized stock, call /v1/actions/upcoming and avoid acting within the window of a pending change for that token.
+- For authoritative state, read the token contract (uiMultiplier, newUIMultiplier, effectiveAt, isPaused) directly; this API is an index and may lag by ~20 blocks.
+- License: MIT. See the repository README for source and the security model.
