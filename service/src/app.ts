@@ -86,7 +86,29 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   app.get("/health", async () => ({ ok: true, cursor: deps.db.getKv("cursor") ?? null, tokens: deps.db.tokens().length }));
 
-  app.get("/v1/tokens", async () => ({ tokens: deps.db.tokens().map((t) => describeToken(deps, t.address)) }));
+  // Live chain reads for the whole list, cached briefly so a dashboard refresh does not fan out RPC calls.
+  let liveCache: { at: number; byAddr: Map<string, LiveState | null> } | undefined;
+  const liveAll = async (addrs: string[]) => {
+    if (!deps.live) return undefined;
+    if (liveCache && Date.now() - liveCache.at < 20_000) return liveCache.byAddr;
+    const byAddr = new Map<string, LiveState | null>();
+    let i = 0;
+    const worker = async () => {
+      while (i < addrs.length) {
+        const a = addrs[i++]!;
+        byAddr.set(a, (await deps.live!(a).catch(() => undefined)) ?? null);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(12, addrs.length) }, worker));
+    liveCache = { at: Date.now(), byAddr };
+    return byAddr;
+  };
+
+  app.get("/v1/tokens", async () => {
+    const rows = deps.db.tokens();
+    const live = await liveAll(rows.map((t) => t.address));
+    return { tokens: rows.map((t) => ({ ...describeToken(deps, t.address), ...(live ? { live: live.get(t.address) ?? null } : {}) })) };
+  });
 
   app.get<{ Params: { address: string } }>("/v1/tokens/:address", async (req, reply) => {
     if (!ADDR.test(req.params.address)) return reply.code(400).send({ error: "bad address" });
@@ -181,6 +203,16 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       const body = pub(file);
       return body === undefined ? reply.code(404).send({ error: "not found" }) : reply.type(type).send(body);
     });
+  app.get<{ Params: { file: string } }>("/fonts/:file", async (req, reply) => {
+    const f = req.params.file;
+    const p = join(here, "..", "public", "fonts", f);
+    if (!/^[a-z0-9-]+\.woff2$/.test(f) || !existsSync(p)) return reply.code(404).send({ error: "not found" });
+    return reply.type("font/woff2").header("cache-control", "public, max-age=31536000, immutable").send(readFileSync(p));
+  });
+  app.get("/INTEGRATING.md", async (_req, reply) => {
+    const p = join(here, "..", "..", "docs", "INTEGRATING.md");
+    return existsSync(p) ? reply.type("text/markdown; charset=utf-8").send(readFileSync(p, "utf8")) : reply.code(404).send({ error: "not found" });
+  });
   serve("/", "index.html", "text/html; charset=utf-8");
   serve("/llms.txt", "llms.txt", "text/plain; charset=utf-8");
   serve("/openapi.json", "openapi.json", "application/json");

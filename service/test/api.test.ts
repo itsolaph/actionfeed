@@ -74,6 +74,17 @@ describe("REST API", () => {
     expect((await a.inject("/v1/actions/recent")).json().events).toHaveLength(3);
   });
 
+  it("tokens list carries live reads when available; fonts are served", async () => {
+    const s = setup();
+    const live = { uiMultiplier: (W + 5n * 10n ** 15n).toString(), newUIMultiplier: W.toString(), effectiveAt: 0 };
+    const a = await buildApp({ db: s.db, webhooks: s.webhooks, bus: new EventEmitter(), now: () => s.clock.t, live: async () => live });
+    expect((await a.inject("/v1/tokens")).json().tokens[0].live).toEqual(live);
+    const f = await a.inject("/fonts/archivo-latin-wdth-normal.woff2");
+    expect(f.statusCode).toBe(200);
+    expect(f.headers["content-type"]).toContain("font/woff2");
+    expect((await a.inject("/fonts/..%2Fapp.ts")).statusCode).toBe(404);
+  });
+
   it("multiplier at time", async () => {
     const { a } = await app();
     const get = async (at: number) => (await a.inject(`/v1/tokens/${TOKEN}/multiplier?at=${at}`)).json();
