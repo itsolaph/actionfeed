@@ -41,7 +41,7 @@ Public RPCs restrict `getLogs` (small ranges, few addresses, limited archive dep
 
 ## Credits
 - [base/base-std](https://github.com/base/base-std) — B20/ERC-8056 interfaces and mocks (MIT).
-- Dashboard fonts, self-hosted from [Fontsource](https://fontsource.org) packages under the SIL Open Font License 1.1 (licences in `service/public/fonts/`): Archivo (`@fontsource-variable/archivo`), Instrument Sans (`@fontsource-variable/instrument-sans`), IBM Plex Mono (`@fontsource/ibm-plex-mono`).
+- Dashboard fonts, self-hosted from [Fontsource](https://fontsource.org) packages under the SIL Open Font License 1.1 (licences in `service/public/fonts/`): Geist (`@fontsource-variable/geist`) and Geist Mono (`@fontsource-variable/geist-mono`), by Vercel.
 - Coinbase tokenized stocks API (`api.coinbase.com/v1/tokenized-stocks`) for the token list; Chainlink AggregatorV3 interface for optional reference feeds.
 - ERC-8021 / Base Builder Codes specification.
 - Libraries: viem, Fastify, vitest, forge-std (all MIT/Apache-2.0).

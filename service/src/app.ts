@@ -87,21 +87,40 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   app.get("/health", async () => ({ ok: true, cursor: deps.db.getKv("cursor") ?? null, tokens: deps.db.tokens().length }));
 
   // Live chain reads for the whole list, cached briefly so a dashboard refresh does not fan out RPC calls.
-  let liveCache: { at: number; byAddr: Map<string, LiveState | null> } | undefined;
+  let liveCache = undefined as { at: number; byAddr: Map<string, LiveState | null> } | undefined;
+  let refreshing: Promise<void> | undefined;
+  const peek = () => liveCache;
+  const refreshLive = (addrs: string[]) => {
+    if (refreshing) return refreshing;
+    refreshing = (async () => {
+      const byAddr = new Map<string, LiveState | null>();
+      let i = 0;
+      const worker = async () => {
+        while (i < addrs.length) {
+          const a = addrs[i++]!;
+          byAddr.set(a, (await deps.live!(a).catch(() => undefined)) ?? liveCache?.byAddr.get(a) ?? null);
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(4, addrs.length) }, worker));
+      liveCache = { at: Date.now(), byAddr };
+    })().finally(() => {
+      refreshing = undefined;
+    });
+    return refreshing;
+  };
+  if (deps.live) {
+    const warm = () => void refreshLive(deps.db.tokens().map((t) => t.address)).catch(() => undefined);
+    setTimeout(warm, 0).unref();
+    setInterval(warm, 45_000).unref();
+  }
+  // Stale-while-revalidate: never block a request on a slow or rate-limited RPC.
   const liveAll = async (addrs: string[]) => {
     if (!deps.live) return undefined;
-    if (liveCache && Date.now() - liveCache.at < 20_000) return liveCache.byAddr;
-    const byAddr = new Map<string, LiveState | null>();
-    let i = 0;
-    const worker = async () => {
-      while (i < addrs.length) {
-        const a = addrs[i++]!;
-        byAddr.set(a, (await deps.live!(a).catch(() => undefined)) ?? null);
-      }
-    };
-    await Promise.all(Array.from({ length: Math.min(12, addrs.length) }, worker));
-    liveCache = { at: Date.now(), byAddr };
-    return byAddr;
+    if (liveCache && Date.now() - liveCache.at < 60_000) return liveCache.byAddr;
+    const p = refreshLive(addrs);
+    if (liveCache) return liveCache.byAddr;
+    await Promise.race([p, new Promise((r) => setTimeout(r, 8_000))]);
+    return peek()?.byAddr;
   };
 
   app.get("/v1/tokens", async () => {
