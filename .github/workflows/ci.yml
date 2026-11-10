@@ -6,7 +6,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: foundry-rs/foundry-toolchain@v1
-      - run: ./contracts/install-deps.sh
+      - run: bash contracts/install-deps.sh
       - run: forge fmt --check
         working-directory: contracts
       - run: forge test -vv
